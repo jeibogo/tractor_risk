@@ -6,7 +6,7 @@
 name=Tractor Rollover Risk
 qgisMinimumVersion=3.0
 description=Zoning of tractor rollover risk based on CoG dimensions and terrain.
-version=0.1
+version=1.8.0
 author=Jeison Bogota
 email=jeibogogit@gmail.com
 
