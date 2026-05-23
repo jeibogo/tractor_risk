@@ -1,0 +1,28 @@
+# Archivo .gitignore para QGIS Plugin - Tractor Risk
+
+# === Python ===
+# No subir archivos compilados de Python (se generan automáticamente)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# === QGIS/Qt ===
+# No subir el archivo de recursos original (.qrc) si ya tenemos el compilado (.py)
+# NOTA: En flujos avanzados se prefiere subir el .qrc y generar el .py en CI,
+# pero para este nivel, subiremos el resources.py para facilidad de instalación.
+# Si quieres ser purista, descomenta la siguiente línea:
+# resources.py
+
+# === IDEs y Entorno ===
+# No subir configuraciones locales de tu VS Code o PyCharm
+.vscode/
+.idea/
+.DS_Store
+
+# === TU DATA TEMPORAL (CRÍTICO) ===
+# No subir NUNCA la carpeta de salida con los DEMs descargados y resultados
+Tractor_Risk_Output/
+# Tampoco subir copias de seguridad que hayas hecho tú a mano
+*.bak
+*_copia.py
