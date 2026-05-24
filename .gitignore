@@ -26,3 +26,8 @@ Tractor_Risk_Output/
 # Tampoco subir copias de seguridad que hayas hecho tú a mano
 *.bak
 *_copia.py
+
+# Archivos autogenerados por Plugin Builder que no se usan en producción
+plugin_upload.py
+pb_tool.cfg
+Makefile
