@@ -36,7 +36,7 @@ import processing
 class TractorRiskDialog(QDialog):
     def __init__(self, parent=None):
         super(TractorRiskDialog, self).__init__(parent)
-        self.setWindowTitle("Tractor Rollover Risk Zoning v1.7.0")
+        self.setWindowTitle("Tractor Rollover Risk Zoning v1.8.1")
         self.resize(480, 650) # Expanded window to comfortably fit all elements
         
         # Create a safe temporary directory
