@@ -26,7 +26,7 @@ from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
 
 # Initialize Qt resources from file resources.py
-from .resources import *
+from .resources import * # noqa: F401, F403
 # Import the code for the dialog
 from .tractor_risk_dialog import TractorRiskDialog
 import os.path
@@ -34,6 +34,7 @@ import os.path
 
 class TractorRisk:
     """QGIS Plugin Implementation."""
+
 
     def __init__(self, iface):
         """Constructor.
@@ -66,6 +67,7 @@ class TractorRisk:
         # Check if plugin was started the first time in current QGIS session
         # Must be set in initGui() to survive plugin reloads
         self.first_start = None
+
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -132,7 +134,6 @@ class TractorRisk:
             added to self.actions list.
         :rtype: QAction
         """
-
         icon = QIcon(icon_path)
         action = QAction(icon, text, parent)
         action.triggered.connect(callback)
@@ -156,6 +157,7 @@ class TractorRisk:
         self.actions.append(action)
 
         return action
+
 
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
@@ -182,10 +184,9 @@ class TractorRisk:
 
     def run(self):
         """Run method that performs all the real work"""
-
         # Create the dialog with elements (after translation) and keep reference
         # Only create GUI ONCE in callback, so that it will only load when the plugin is started
-        if self.first_start == True:
+        if self.first_start:
             self.first_start = False
             self.dlg = TractorRiskDialog()
 

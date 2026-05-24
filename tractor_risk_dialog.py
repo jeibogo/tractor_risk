@@ -24,29 +24,31 @@
 import os
 import math
 import elevation
-from qgis.PyQt.QtWidgets import (QDialog, QVBoxLayout, QFormLayout, 
-                                 QLineEdit, QPushButton, QMessageBox, QLabel)
+from qgis.PyQt.QtWidgets import (QDialog, QVBoxLayout, QFormLayout, QLineEdit, QPushButton, QMessageBox, QLabel)
 from qgis.PyQt.QtGui import QColor, QPixmap
 from qgis.PyQt.QtCore import Qt
 from qgis.gui import QgsMapToolExtent
 from qgis.core import QgsProject, QgsRasterLayer, QgsVectorLayer, QgsPalettedRasterRenderer
 from qgis.utils import iface
-import processing 
+import processing
+
 
 class TractorRiskDialog(QDialog):
+
+
     def __init__(self, parent=None):
         super(TractorRiskDialog, self).__init__(parent)
-        self.setWindowTitle("Tractor Rollover Risk Zoning v1.8.4")
-        self.resize(480, 650) # Expanded window to comfortably fit all elements
-        
+        self.setWindowTitle("Tractor Rollover Risk Zoning v1.8.5")
+        self.resize(480, 650)  # Expanded window to comfortably fit all elements
+
         # Create a safe temporary directory
         self.output_dir = os.path.join(os.path.expanduser('~'), 'Tractor_Risk_Output')
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
-        
+
         layout = QVBoxLayout()
         form_layout = QFormLayout()
-        
+
         # Tractor Inputs
         self.in_tractor_model = QLineEdit("New Holland TN75V")
         self.in_z_cog = QLineEdit("0.701")
@@ -54,22 +56,22 @@ class TractorRiskDialog(QDialog):
         self.in_y_cog = QLineEdit("0.013")
         self.in_t_front = QLineEdit("0.850")
         self.in_L = QLineEdit("2.060")
-        
+
         form_layout.addRow("Tractor Model:", self.in_tractor_model)
         form_layout.addRow("CoG Height (Z) [m]:", self.in_z_cog)
         form_layout.addRow("Rear axle to CoG (X) [m]:", self.in_x_cog)
         form_layout.addRow("CoG lateral offset (Y) [m]:", self.in_y_cog)
         form_layout.addRow("Front track width (t) [m]:", self.in_t_front)
         form_layout.addRow("Wheelbase (L) [m]:", self.in_L)
-        
+
         # === BASEMAP AND BOUNDING BOX SECTION ===
-        
+
         # 1. New button to load the Satellite Map
         self.btn_basemap = QPushButton("1. Load Reference Satellite Map")
         self.btn_basemap.setStyleSheet("background-color: #5cb85c; color: white; font-weight: bold; padding: 5px;")
         self.btn_basemap.clicked.connect(self.load_satellite_map)
         form_layout.addRow(self.btn_basemap)
-        
+
         # Bounding Box
         self.in_bbox = QLineEdit("")
         self.in_bbox.setPlaceholderText("Click below to capture the area...")
@@ -77,14 +79,14 @@ class TractorRiskDialog(QDialog):
         self.btn_draw_bbox.clicked.connect(self.activate_map_tool)
         form_layout.addRow(self.btn_draw_bbox, self.in_bbox)
         layout.addLayout(form_layout)
-        
+
         # Tractor Image Section
         self.label_image = QLabel()
-        
+
         # This dynamically finds the folder where this script is saved
         plugin_dir = os.path.dirname(__file__)
         image_path = os.path.join(plugin_dir, 'tractorDimentions.png')
-        
+
         pixmap = QPixmap(image_path)
         if not pixmap.isNull():
             pixmap_scaled = pixmap.scaledToHeight(220, Qt.SmoothTransformation)
@@ -96,15 +98,16 @@ class TractorRiskDialog(QDialog):
             self.label_image.setStyleSheet("color: gray; font-style: italic; padding: 10px;")
 
         layout.addWidget(self.label_image)
-        
+
         # Run Button
         self.btn_run = QPushButton("Download Terrain and Calculate Risks")
         self.btn_run.setStyleSheet("background-color: #0078d4; color: white; font-weight: bold; padding: 10px; font-size: 13px;")
         self.btn_run.clicked.connect(self.run_analysis)
         layout.addWidget(self.btn_run)
-        
+
         self.setLayout(layout)
         self.canvas = iface.mapCanvas()
+
 
     def activate_map_tool(self):
         """Activates the QGIS map tool to draw a rectangle"""
@@ -114,6 +117,7 @@ class TractorRiskDialog(QDialog):
         self.canvas.setMapTool(self.map_tool)
         self.hide()
 
+
     def on_bbox_drawn(self, extent):
         """Captures the coordinates from the drawn bounding box"""
         self.bbox_tuple = (extent.xMinimum(), extent.yMinimum(), extent.xMaximum(), extent.yMaximum())
@@ -122,23 +126,25 @@ class TractorRiskDialog(QDialog):
         self.canvas.setMapTool(self.previous_tool)
         self.show()
 
+
     def load_satellite_map(self):
         """Loads an XYZ satellite basemap (Esri World Imagery) into QGIS"""
         url_sat = "type=xyz&url=https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}&zmax=19&zmin=0"
         layer_sat = QgsRasterLayer(url_sat, "Satellite (Esri World Imagery)", "wms")
-        
+
         if layer_sat.isValid():
             QgsProject.instance().addMapLayer(layer_sat)
             iface.messageBar().pushMessage("Success", "Satellite map loaded. Zoom to your working area before selecting the BBox.", level=0)
         else:
             QMessageBox.critical(self, "Error", "Could not load the satellite map. Check your internet connection.")
 
+
     def apply_risk_style(self, layer_path, layer_name, q1, q2, q3):
         """Applies the native QGIS color palette (Transparent, Orange, Red, Dark Red) to the layer"""
         layer = QgsRasterLayer(layer_path, layer_name)
         if not layer.isValid():
             return
-        
+
         classes = [
             QgsPalettedRasterRenderer.Class(0, QColor(0, 0, 0, 0), f"Safe (< {q1:.1f}°)"),
             QgsPalettedRasterRenderer.Class(1, QColor(255, 165, 0, 160), f"Caution (>= {q1:.1f}°)"),
@@ -149,12 +155,13 @@ class TractorRiskDialog(QDialog):
         layer.setRenderer(renderer)
         QgsProject.instance().addMapLayer(layer)
 
+
     def run_analysis(self):
         """Main calculation engine and GIS processing"""
         try:
             if self.in_bbox.text() == "":
                 raise ValueError("You must select an area (BBox) first.")
-                
+
             # Read Tractor Parameters
             tractor_model = self.in_tractor_model.text()
             z_cog = float(self.in_z_cog.text())
@@ -162,13 +169,13 @@ class TractorRiskDialog(QDialog):
             y_cog = float(self.in_y_cog.text())
             t_front = float(self.in_t_front.text())
             L = float(self.in_L.text())
-            
+
             # Mathematics
-            safety_factor = 0.85 
+            safety_factor = 0.85
             A_lateral = math.degrees(math.atan(((t_front / 2.0) - abs(y_cog)) / z_cog)) * safety_factor
             A_rear = math.degrees(math.atan(x_cog / z_cog)) * safety_factor
             A_front = math.degrees(math.atan((L - x_cog) / z_cog)) * safety_factor
-            
+
             limits = {
                 'Lateral': (A_lateral/3.0, 2.0*A_lateral/3.0, A_lateral),
                 'Rear': (A_rear/3.0, 2.0*A_rear/3.0, A_rear),
@@ -180,63 +187,63 @@ class TractorRiskDialog(QDialog):
             hillshade_path = os.path.join(self.output_dir, 'hillshade.tif')
             contours_path = os.path.join(self.output_dir, 'contours.gpkg')
             slope_path = os.path.join(self.output_dir, 'slope_degrees.tif')
-            
+
             # 1. Download DEM
             iface.messageBar().pushMessage("Progress", "Downloading DEM of the area...", level=0)
             elevation.clip(bounds=self.bbox_tuple, output=dem_path)
-            
+
             # ---- LOAD BACKGROUND LAYERS (Bottom layers first) ----
-            
+
             # 2. Load Raw DEM Layer
             dem_layer = QgsRasterLayer(dem_path, "Digital Elevation Model (DEM)")
             QgsProject.instance().addMapLayer(dem_layer)
-            
+
             # 3. Calculate and Load Hillshade using native GDAL
             iface.messageBar().pushMessage("Progress", "Generating Hillshade map...", level=0)
             processing.run("gdal:hillshade", {
-                'INPUT': dem_path, 'BAND': 1, 'Z_FACTOR': 1, 'SCALE': 111120, 
+                'INPUT': dem_path, 'BAND': 1, 'Z_FACTOR': 1, 'SCALE': 111120,
                 'AZIMUTH': 315, 'ALTITUDE': 45, 'OUTPUT': hillshade_path
             })
             hs_layer = QgsRasterLayer(hillshade_path, "Hillshade")
             QgsProject.instance().addMapLayer(hs_layer)
-            
+
             # 4. Calculate and Load Contour Lines (Every 10 meters)
             iface.messageBar().pushMessage("Progress", "Generating contour lines...", level=0)
             processing.run("gdal:contour", {
-                'INPUT': dem_path, 'BAND': 1, 'INTERVAL': 10.0, 
+                'INPUT': dem_path, 'BAND': 1, 'INTERVAL': 10.0,
                 'FIELD_NAME': 'ELEV', 'OUTPUT': contours_path
             })
             contour_layer = QgsVectorLayer(contours_path, "Contour Lines (10m)", "ogr")
             QgsProject.instance().addMapLayer(contour_layer)
-            
+
             # 5. Calculate Base Slope
             processing.run("gdal:slope", {
-                'INPUT': dem_path, 'BAND': 1, 'SCALE': 111120, 
+                'INPUT': dem_path, 'BAND': 1, 'SCALE': 111120,
                 'AS_PERCENT': False, 'OUTPUT': slope_path
             })
-            
+
             # ---- LOAD RISK LAYERS (Top layers last) ----
             for risk_type, (q1, q2, q3) in limits.items():
                 iface.messageBar().pushMessage("Progress", f"Classifying {risk_type.lower()} risk...", level=0)
                 risk_path = os.path.join(self.output_dir, f'risk_{risk_type.lower()}.tif')
-                
+
                 reclass_table = [
                     0,  q1,  0,
                     q1, q2,  1,
                     q2, q3,  2,
                     q3, 90,  3
                 ]
-                
+
                 processing.run("native:reclassifybytable", {
                     'INPUT_RASTER': slope_path, 'RASTER_BAND': 1, 'TABLE': reclass_table,
                     'NO_DATA_VALUE': -9999, 'RANGE_BOUNDARIES': 0, 'NODATA_FOR_MISSING': True,
                     'DATA_TYPE': 5, 'OUTPUT': risk_path
                 })
-                
+
                 self.apply_risk_style(risk_path, f"{risk_type} Risk ({tractor_model})", q1, q2, q3)
-            
+
             QMessageBox.information(self, "Success!", "Analysis completed. Terrain and risk layers have been loaded.")
-            self.accept()  
-            
+            self.accept()
+
         except Exception as e:
             QMessageBox.critical(self, "Process Error", str(e))
