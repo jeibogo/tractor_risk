@@ -31,3 +31,7 @@ Tractor_Risk_Output/
 plugin_upload.py
 pb_tool.cfg
 Makefile
+
+# Ignorar carpetas autogeneradas de ayuda y scripts que levantan falsos positivos
+help/
+scripts/
