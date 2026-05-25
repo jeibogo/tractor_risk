@@ -35,10 +35,9 @@ import processing
 
 class TractorRiskDialog(QDialog):
 
-
     def __init__(self, parent=None):
         super(TractorRiskDialog, self).__init__(parent)
-        self.setWindowTitle("Tractor Rollover Risk Zoning v1.8.5")
+        self.setWindowTitle("Tractor Rollover Risk Zoning v1.8.6")
         self.resize(480, 650)  # Expanded window to comfortably fit all elements
 
         # Create a safe temporary directory
@@ -108,7 +107,6 @@ class TractorRiskDialog(QDialog):
         self.setLayout(layout)
         self.canvas = iface.mapCanvas()
 
-
     def activate_map_tool(self):
         """Activates the QGIS map tool to draw a rectangle"""
         self.previous_tool = self.canvas.mapTool()
@@ -117,7 +115,6 @@ class TractorRiskDialog(QDialog):
         self.canvas.setMapTool(self.map_tool)
         self.hide()
 
-
     def on_bbox_drawn(self, extent):
         """Captures the coordinates from the drawn bounding box"""
         self.bbox_tuple = (extent.xMinimum(), extent.yMinimum(), extent.xMaximum(), extent.yMaximum())
@@ -125,7 +122,6 @@ class TractorRiskDialog(QDialog):
         self.in_bbox.setText(bbox_str)
         self.canvas.setMapTool(self.previous_tool)
         self.show()
-
 
     def load_satellite_map(self):
         """Loads an XYZ satellite basemap (Esri World Imagery) into QGIS"""
@@ -137,7 +133,6 @@ class TractorRiskDialog(QDialog):
             iface.messageBar().pushMessage("Success", "Satellite map loaded. Zoom to your working area before selecting the BBox.", level=0)
         else:
             QMessageBox.critical(self, "Error", "Could not load the satellite map. Check your internet connection.")
-
 
     def apply_risk_style(self, layer_path, layer_name, q1, q2, q3):
         """Applies the native QGIS color palette (Transparent, Orange, Red, Dark Red) to the layer"""
@@ -154,7 +149,6 @@ class TractorRiskDialog(QDialog):
         renderer = QgsPalettedRasterRenderer(layer.dataProvider(), 1, classes)
         layer.setRenderer(renderer)
         QgsProject.instance().addMapLayer(layer)
-
 
     def run_analysis(self):
         """Main calculation engine and GIS processing"""
@@ -177,9 +171,9 @@ class TractorRiskDialog(QDialog):
             A_front = math.degrees(math.atan((L - x_cog) / z_cog)) * safety_factor
 
             limits = {
-                'Lateral': (A_lateral/3.0, 2.0*A_lateral/3.0, A_lateral),
-                'Rear': (A_rear/3.0, 2.0*A_rear/3.0, A_rear),
-                'Front': (A_front/3.0, 2.0*A_front/3.0, A_front)
+                'Lateral': (A_lateral / 3.0, 2.0 * A_lateral / 3.0, A_lateral),
+                'Rear': (A_rear / 3.0, 2.0 * A_rear / 3.0, A_rear),
+                'Front': (A_front / 3.0, 2.0 * A_front / 3.0, A_front)
             }
 
             # File Paths

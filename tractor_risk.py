@@ -26,7 +26,7 @@ from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
 
 # Initialize Qt resources from file resources.py
-from .resources import * # noqa: F401, F403
+from .resources import *  # noqa: F401, F403
 # Import the code for the dialog
 from .tractor_risk_dialog import TractorRiskDialog
 import os.path
@@ -34,7 +34,6 @@ import os.path
 
 class TractorRisk:
     """QGIS Plugin Implementation."""
-
 
     def __init__(self, iface):
         """Constructor.
@@ -68,7 +67,6 @@ class TractorRisk:
         # Must be set in initGui() to survive plugin reloads
         self.first_start = None
 
-
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
         """Get the translation for a string using Qt translation API.
@@ -84,18 +82,7 @@ class TractorRisk:
         # noinspection PyTypeChecker,PyArgumentList,PyCallByClass
         return QCoreApplication.translate('TractorRisk', message)
 
-
-    def add_action(
-        self,
-        icon_path,
-        text,
-        callback,
-        enabled_flag=True,
-        add_to_menu=True,
-        add_to_toolbar=True,
-        status_tip=None,
-        whats_this=None,
-        parent=None):
+    def add_action(self, icon_path, text, callback, enabled_flag=True, add_to_menu=True, add_to_toolbar=True, status_tip=None, whats_this=None, parent=None):
         """Add a toolbar icon to the toolbar.
 
         :param icon_path: Path to the icon for this action. Can be a resource
@@ -158,7 +145,6 @@ class TractorRisk:
 
         return action
 
-
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
 
@@ -172,7 +158,6 @@ class TractorRisk:
         # will be set False in run()
         self.first_start = True
 
-
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
         for action in self.actions:
@@ -180,7 +165,6 @@ class TractorRisk:
                 self.tr(u'&Tractor Rollover Risk'),
                 action)
             self.iface.removeToolBarIcon(action)
-
 
     def run(self):
         """Run method that performs all the real work"""
