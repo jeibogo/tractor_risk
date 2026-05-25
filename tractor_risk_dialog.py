@@ -221,12 +221,7 @@ class TractorRiskDialog(QDialog):
                 iface.messageBar().pushMessage("Progress", f"Classifying {risk_type.lower()} risk...", level=0)
                 risk_path = os.path.join(self.output_dir, f'risk_{risk_type.lower()}.tif')
 
-                reclass_table = [
-                    0,  q1,  0,
-                    q1, q2,  1,
-                    q2, q3,  2,
-                    q3, 90,  3
-                ]
+                reclass_table = [0, q1, 0, q1, q2, 1, q2, q3, 2, q3, 90, 3]
 
                 processing.run("native:reclassifybytable", {
                     'INPUT_RASTER': slope_path, 'RASTER_BAND': 1, 'TABLE': reclass_table,
@@ -241,3 +236,4 @@ class TractorRiskDialog(QDialog):
 
         except Exception as e:
             QMessageBox.critical(self, "Process Error", str(e))
+            
