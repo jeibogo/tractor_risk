@@ -76,5 +76,18 @@ Legacy versions bypass the API by compiling the DEM locally, offering unlimited 
 - **Unified Cross-Platform Architecture**: Completely redesigned the DEM data acquisition pipeline. The plugin now uses a single, native Python `urllib` HTTPS request engine for Windows, Linux, and macOS.
 - **Dependency Elimination**: Removed the legacy `elevation` Python package and its reliance on OS-level GNU tools (`make`, `curl`, `gdal-bin`).
 
+## [v2.1.1] - 2026-06-02
+### Added
+- **API Quota Management UI**: Integrated a custom `QMessageBox` error dialog that captures API limits (HTTP 401/403/429) from OpenTopography, featuring direct HTML hyperlinks for free user registration.
+- **Advanced Linux Document**: Added a legacy mitigation note for power users requiring unlimited local downloads via older releases.
+
+### Changed
+- **Unified Cross-Platform Architecture**: Re-engineered the DEM download engine into a single, native Python `urllib` routine compatible with Windows, Linux, and macOS without branching.
+- **Dependency Elimination**: Removed the legacy `elevation` library and its heavy system-level requirements (`make`, `curl`, `gdal-bin`).
+
+### Fixed
+- **Code Quality & PEP8 Compliance**: Resolved QGIS validator linter errors `F401` (removed unused `platform` import) and `E261` (corrected formatting spacing for the `# nosec` inline comment).
+- **Linux Environment Bypassing**: Solved the strict PEP 668 "Externally Managed Environment" crashes on modern Ubuntu/Debian distros.
+
 ---
 *Developed for the QGIS community to promote agricultural safety.*

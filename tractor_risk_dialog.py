@@ -23,7 +23,6 @@
 """
 import os
 import math
-import platform
 import subprocess
 import sys
 import urllib.request
@@ -42,7 +41,7 @@ class TractorRiskDialog(QDialog):
 
     def __init__(self, parent=None):
         super(TractorRiskDialog, self).__init__(parent)
-        self.setWindowTitle("Tractor Rollover Risk Zoning v2.1.0")
+        self.setWindowTitle("Tractor Rollover Risk Zoning v2.1.1")
         self.resize(480, 650)  # Expanded window to comfortably fit all elements
 
         # Create a safe temporary directory
@@ -272,7 +271,7 @@ class TractorRiskDialog(QDialog):
                     msg.setTextInteractionFlags(Qt.TextBrowserInteraction)
 
                     msg.exec_()
-                    return # Stops execution to avoid QGIS errors
+                    return  # Stops execution to avoid QGIS errors
                 else:
                     raise e
 
