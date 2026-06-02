@@ -23,7 +23,12 @@
 """
 import os
 import math
-import elevation
+import platform
+import subprocess
+import sys
+import urllib.request
+from urllib.error import HTTPError
+
 from qgis.PyQt.QtWidgets import (QDialog, QVBoxLayout, QFormLayout, QLineEdit, QPushButton, QMessageBox, QLabel)
 from qgis.PyQt.QtGui import QColor, QPixmap
 from qgis.PyQt.QtCore import Qt
@@ -32,12 +37,11 @@ from qgis.core import QgsProject, QgsRasterLayer, QgsVectorLayer, QgsPalettedRas
 from qgis.utils import iface
 import processing
 
-
 class TractorRiskDialog(QDialog):
 
     def __init__(self, parent=None):
         super(TractorRiskDialog, self).__init__(parent)
-        self.setWindowTitle("Tractor Rollover Risk Zoning v1.8.8")
+        self.setWindowTitle("Tractor Rollover Risk Zoning v2.0.0")
         self.resize(480, 650)  # Expanded window to comfortably fit all elements
 
         # Create a safe temporary directory
@@ -62,6 +66,12 @@ class TractorRiskDialog(QDialog):
         form_layout.addRow("CoG lateral offset (Y) [m]:", self.in_y_cog)
         form_layout.addRow("Front track width (t) [m]:", self.in_t_front)
         form_layout.addRow("Wheelbase (L) [m]:", self.in_L)
+
+        # --- NEW API KEY INPUT ---
+        self.in_api_key = QLineEdit("")
+        self.in_api_key.setPlaceholderText("Optional: Paste your personal API Key here")
+        form_layout.addRow("API Key:", self.in_api_key)
+        # -------------------------
 
         # === BASEMAP AND BOUNDING BOX SECTION ===
 
@@ -116,10 +126,32 @@ class TractorRiskDialog(QDialog):
         self.hide()
 
     def on_bbox_drawn(self, extent):
-        """Captures the coordinates from the drawn bounding box"""
-        self.bbox_tuple = (extent.xMinimum(), extent.yMinimum(), extent.xMaximum(), extent.yMaximum())
-        bbox_str = f"{extent.xMinimum():.4f}, {extent.yMinimum():.4f}, {extent.xMaximum():.4f}, {extent.yMaximum():.4f}"
+        """Captures coordinates, transforms them to EPSG:4326 if needed, and stores them."""
+        from qgis.core import QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsRectangle, QgsProject
+
+        # 1. Get the current CRS of the user's project
+        source_crs = self.canvas.mapSettings().destinationCrs()
+        
+        # 2. Define the target CRS (WGS 84 / EPSG:4326)
+        target_crs = QgsCoordinateReferenceSystem("EPSG:4326")
+        
+        # 3. Create the geometric object for the drawn rectangle
+        bbox_rect = QgsRectangle(extent.xMinimum(), extent.yMinimum(), extent.xMaximum(), extent.yMaximum())
+
+        # 4. THE FIX: Compare the CRS objects directly instead of using string comparison
+        if source_crs != target_crs:
+            transform = QgsCoordinateTransform(source_crs, target_crs, QgsProject.instance())
+            # FIXED INDENTATION: This line is now correctly INSIDE the 'if' block
+            bbox_rect = transform.transformBoundingBox(bbox_rect)
+
+        # 5. Save the transformed coordinates in the internal tuple
+        self.bbox_tuple = (bbox_rect.xMinimum(), bbox_rect.yMinimum(), bbox_rect.xMaximum(), bbox_rect.yMaximum())
+        
+        # 6. Display the numbers in the user interface (always in decimal degrees)
+        bbox_str = f"{bbox_rect.xMinimum():.4f}, {bbox_rect.yMinimum():.4f}, {bbox_rect.xMaximum():.4f}, {bbox_rect.yMaximum():.4f}"
         self.in_bbox.setText(bbox_str)
+        
+        # Restore the map tool and show the plugin window again
         self.canvas.setMapTool(self.previous_tool)
         self.show()
 
@@ -182,9 +214,73 @@ class TractorRiskDialog(QDialog):
             contours_path = os.path.join(self.output_dir, 'contours.gpkg')
             slope_path = os.path.join(self.output_dir, 'slope_degrees.tif')
 
-            # 1. Download DEM
-            iface.messageBar().pushMessage("Progress", "Downloading DEM of the area...", level=0)
-            elevation.clip(bounds=self.bbox_tuple, output=dem_path)
+# 1. DEM DOWNLOAD (SILENT MULTI-PLATFORM LOGIC)
+            system_os = platform.system()
+            minx, miny, maxx, maxy = self.bbox_tuple
+
+            # Robust check for Windows
+            if 'windows' in system_os.lower():
+                iface.messageBar().pushMessage("Progress", "Downloading DEM data...", level=0)
+                
+                # --- DYNAMIC API KEY LOGIC ---
+                user_api_key = self.in_api_key.text().strip()
+                hardcoded_api_key = "ee4b6a134537de1d72c320e0a61eeb26"
+
+                # Use the user's key if they pasted one, otherwise use the hardcoded default
+                active_api_key = user_api_key if user_api_key else hardcoded_api_key
+                
+                url = f"https://portal.opentopography.org/API/globaldem?demtype=SRTMGL1&south={miny}&north={maxy}&west={minx}&east={maxx}&outputFormat=GTiff&API_Key={active_api_key}"
+
+                try:
+                    urllib.request.urlretrieve(url, dem_path)
+                except HTTPError as e:
+                    if e.code in [401, 403, 429]:
+                        msg = QMessageBox(self)
+                        msg.setWindowTitle("⚠️ API Limit Reached")
+
+                        # --- LOAD THE LOGO ---
+                        plugin_dir = os.path.dirname(__file__)
+                        logo_path = os.path.join(plugin_dir, 'ot_logo.png')
+                        pixmap = QPixmap(logo_path)
+                        if not pixmap.isNull():
+                            pixmap_scaled = pixmap.scaledToWidth(150, Qt.SmoothTransformation)
+                            msg.setIconPixmap(pixmap_scaled)
+                        
+                        # Title and mandatory attribution
+                        msg.setText("<b>The API account quota has been exhausted or the key is invalid.</b><br><i>Data provided by OpenTopography</i>")
+                        
+                        # Informative text with HTML link
+                        info_text = (
+                            "To continue using this tool, please create a free account to get your own API Key.<br><br>"
+                            "👉 <a href='https://portal.opentopography.org/login'>Click here to register at OpenTopography</a><br><br>"
+                            "<b>Once registered, paste your personal API Key in the 'API Key' field of the plugin's main window and try again.</b>"
+                        )
+                        msg.setInformativeText(info_text)
+                        
+                        # Allow clicks on the link
+                        msg.setTextFormat(Qt.RichText)
+                        msg.setTextInteractionFlags(Qt.TextBrowserInteraction)
+                        
+                        msg.exec_()
+                        return # Stops execution to avoid QGIS errors
+                    else:
+                        raise e 
+            else:
+                # --- LOGIC FOR LINUX AND MAC ---
+                iface.messageBar().pushMessage("Progress", "Preparing environment and downloading DEM...", level=0)
+                try:
+                    import elevation
+                except ImportError:
+                    try:
+                        # Silently auto-install elevation if it does not exist
+                        subprocess.check_call([sys.executable, "-m", "pip", "install", "elevation"])
+                        import elevation  
+                    except Exception as pip_error:
+                        raise RuntimeError(f"Could not install the required 'elevation' library automatically. "
+                                           f"Please run 'pip install elevation' in your terminal. Error: {pip_error}")
+                
+                # Execute native download for Unix
+                elevation.clip(bounds=(minx, miny, maxx, maxy), output=dem_path)
 
             # ---- LOAD BACKGROUND LAYERS (Bottom layers first) ----
 

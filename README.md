@@ -10,7 +10,7 @@ Agricultural tractor rollovers are a leading cause of fatal accidents on farms w
 * **Tractor Customization:** Allows input of specific tractor dimensions (Wheelbase, Track width, CoG height, and offsets).
 * **Automated GIS Processing:** Automatically generates necessary base layers (Hillshade, 10m Contours, and Slope in degrees).
 * **Risk Classification:** Generates three distinct risk maps (Lateral, Rear, and Front) styled with a native QGIS color palette:
-  * 🟩 **Safe**
+  * No color  **Safe**
   * 🟧 **Caution**
   * 🟥 **High Danger**
   * 🟫 **Imminent Rollover**
@@ -34,6 +34,16 @@ The plugin works through a simple 3-step pipeline:
 * QGIS 3.x
 * Active internet connection (to download the DEM and satellite basemap).
 * Python `elevation` library installed in the QGIS environment.
+
+## [v2.0.0] - 2026-06-01
+### Added
+- **Multi-platform OS Detection**: The plugin now intelligently identifies the operating system to optimize the DEM download strategy.
+- **Dynamic API Key Input**: Users can now insert their personal OpenTopography API Key directly from the main interface. If left blank, the plugin uses a default fallback key.
+- **Unix Auto-Installer**: For Linux and Mac users, the plugin will silently attempt to install the required `elevation` library via `pip` if it's not already present.
+- **Interactive Error Dialog**: Added a custom, user-friendly Qt error window for API limit exceptions (HTTP 401/429), featuring the OpenTopography logo and a clickable registration link.
+
+### Fixed
+- **CRS Transformation Bug**: Fixed an issue in Windows where the bounding box coordinates were not properly transformed to WGS 84 (EPSG:4326) when the QGIS project used a different projection, preventing successful urllib requests.
 
 ---
 *Developed for the QGIS community to promote agricultural safety.*
