@@ -42,7 +42,7 @@ class TractorRiskDialog(QDialog):
 
     def __init__(self, parent=None):
         super(TractorRiskDialog, self).__init__(parent)
-        self.setWindowTitle("Tractor Rollover Risk Zoning v2.0.1")
+        self.setWindowTitle("Tractor Rollover Risk Zoning v2.0.2")
         self.resize(480, 650)  # Expanded window to comfortably fit all elements
 
         # Create a safe temporary directory
@@ -277,9 +277,9 @@ class TractorRiskDialog(QDialog):
                         msg.setTextInteractionFlags(Qt.TextBrowserInteraction)
 
                         msg.exec_()
-                        return # Stops execution to avoid QGIS errors
+                        return  # Stops execution to avoid QGIS errors
                     else:
-                        raise e 
+                        raise e
             else:
                 # --- LOGIC FOR LINUX AND MAC ---
                 iface.messageBar().pushMessage("Progress", "Preparing environment and downloading DEM...", level=0)
@@ -289,7 +289,7 @@ class TractorRiskDialog(QDialog):
                     try:
                         # Silently auto-install elevation if it does not exist
                         subprocess.check_call([sys.executable, "-m", "pip", "install", "elevation"])
-                        import elevation  
+                        import elevation
                     except Exception as pip_error:
                         raise RuntimeError(f"Could not install the required 'elevation' library automatically. "
                                            f"Please run 'pip install elevation' in your terminal. Error: {pip_error}")

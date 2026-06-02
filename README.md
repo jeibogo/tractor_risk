@@ -51,5 +51,9 @@ The plugin works through a simple 3-step pipeline:
 - **URL Scheme Validation**: Implemented an explicit `https://` prefix check to satisfy security requirements and explicitly ignore rule B310 (`# nosec B310`).
 - **Variable Scope Bug**: Fixed a runtime error (`UnboundLocalError`) in the Windows download logic where the URL validation was being executed before the `url` variable was fully constructed.
 
+## [v2.0.2] - 2026-06-01
+### Fixed
+- **Code Style Compliance**: Cleaned up minor PEP 8 linting warnings throughout the codebase. Resolved missing spaces before inline comments (E261) and removed trailing whitespaces (W291), ensuring cleaner and more maintainable code.
+
 ---
 *Developed for the QGIS community to promote agricultural safety.*
