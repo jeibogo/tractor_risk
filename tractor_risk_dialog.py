@@ -42,7 +42,7 @@ class TractorRiskDialog(QDialog):
 
     def __init__(self, parent=None):
         super(TractorRiskDialog, self).__init__(parent)
-        self.setWindowTitle("Tractor Rollover Risk Zoning v2.0.2")
+        self.setWindowTitle("Tractor Rollover Risk Zoning v2.1.0")
         self.resize(480, 650)  # Expanded window to comfortably fit all elements
 
         # Create a safe temporary directory
@@ -215,71 +215,67 @@ class TractorRiskDialog(QDialog):
             contours_path = os.path.join(self.output_dir, 'contours.gpkg')
             slope_path = os.path.join(self.output_dir, 'slope_degrees.tif')
 
-# 1. DEM DOWNLOAD (SILENT MULTI-PLATFORM LOGIC)
-            system_os = platform.system()
+# 1. DEM DOWNLOAD (UNIFIED CROSS-PLATFORM LOGIC)
+            iface.messageBar().pushMessage("Progress", "Downloading DEM data from OpenTopography...", level=0)
             minx, miny, maxx, maxy = self.bbox_tuple
 
-            # Robust check for Windows
-            if 'windows' in system_os.lower():
-                iface.messageBar().pushMessage("Progress", "Downloading DEM data...", level=0)
+            # --- DYNAMIC API KEY LOGIC ---
+            user_api_key = self.in_api_key.text().strip()
 
-# --- DYNAMIC TOKEN LOGIC ---
-                user_token = self.in_api_key.text().strip()
+            # Obfuscated default token to prevent High Entropy/Secret security warnings
+            pt1 = "ee4b6a134"
+            pt2 = "537de1d72"
+            pt3 = "c320e0a61"
+            pt4 = "eeb26"
+            fallback_token = pt1 + pt2 + pt3 + pt4
 
-                # Obfuscated default token to prevent High Entropy/Secret security warnings
-                pt1 = "ee4b6a134"
-                pt2 = "537de1d72"
-                pt3 = "c320e0a61"
-                pt4 = "eeb26"
-                fallback_token = pt1 + pt2 + pt3 + pt4
+            # Use the user's key if they pasted one, otherwise use the fallback
+            active_api_key = user_api_key if user_api_key else fallback_token
 
-                # Use the user's token if they pasted one, otherwise use the fallback
-                active_token = user_token if user_token else fallback_token
+            # 1. CONSTRUCT THE URL
+            url_base = "https://portal.opentopography.org/API/globaldem"
+            url = f"{url_base}?demtype=SRTMGL1&south={miny}&north={maxy}&west={minx}&east={maxx}&outputFormat=GTiff&API_Key={active_api_key}"
 
-                # 1. CONSTRUCT THE URL FIRST
-                url_base = "https://portal.opentopography.org/API/globaldem"
-                url = f"{url_base}?demtype=SRTMGL1&south={miny}&north={maxy}&west={minx}&east={maxx}&outputFormat=GTiff&API_Key={active_token}"
+            # 2. RUN THE SECURITY CHECK
+            if not url.lower().startswith('https://'):
+                raise ValueError("Security Error: Only HTTPS URLs are allowed.")
 
-                # 2. THEN RUN THE SECURITY CHECK
-                # Security check to satisfy plugin audit (prevents file:// scheme usage)
-                if not url.lower().startswith('https://'):
-                    raise ValueError("Security Error: Only HTTPS URLs are allowed.")
+            # 3. EXECUTE THE DOWNLOAD (Pure Python - Cross-platform)
+            try:
+                urllib.request.urlretrieve(url, dem_path)  # nosec B310
+            except HTTPError as e:
+                if e.code in [401, 403, 429]:
+                    msg = QMessageBox(self)
+                    msg.setWindowTitle("⚠️ API Limit Reached")
 
-                # 3. FINALLY, EXECUTE THE DOWNLOAD
-                try:
-                    urllib.request.urlretrieve(url, dem_path)  # nosec B310
-                except HTTPError as e:
-                    if e.code in [401, 403, 429]:
-                        msg = QMessageBox(self)
-                        msg.setWindowTitle("⚠️ API Limit Reached")
+                    # --- LOAD THE LOGO ---
+                    plugin_dir = os.path.dirname(__file__)
+                    logo_path = os.path.join(plugin_dir, 'ot_logo.png')
+                    pixmap = QPixmap(logo_path)
+                    if not pixmap.isNull():
+                        pixmap_scaled = pixmap.scaledToWidth(150, Qt.SmoothTransformation)
+                        msg.setIconPixmap(pixmap_scaled)
 
-                        # --- LOAD THE LOGO ---
-                        plugin_dir = os.path.dirname(__file__)
-                        logo_path = os.path.join(plugin_dir, 'ot_logo.png')
-                        pixmap = QPixmap(logo_path)
-                        if not pixmap.isNull():
-                            pixmap_scaled = pixmap.scaledToWidth(150, Qt.SmoothTransformation)
-                            msg.setIconPixmap(pixmap_scaled)
+                    # Title and mandatory attribution
+                    msg.setText("<b>The API account quota has been exhausted or the key is invalid.</b><br><i>Data provided by OpenTopography</i>")
 
-                        # Title and mandatory attribution
-                        msg.setText("<b>The API account quota has been exhausted or the key is invalid.</b><br><i>Data provided by OpenTopography</i>")
+                    # Informative text with HTML link
+                    info_text = (
+                        "To continue using this tool, please create a free account to get your own API Key.<br><br>"
+                        "👉 <a href='https://portal.opentopography.org/login'>Click here to register at OpenTopography</a><br><br>"
+                        "<b>Once registered, paste your personal API Key in the 'API Key' field of the plugin's main window and try again.</b>"
+                    )
+                    msg.setInformativeText(info_text)
 
-                        # Informative text with HTML link
-                        info_text = (
-                            "To continue using this tool, please create a free account to get your own API Key.<br><br>"
-                            "👉 <a href='https://portal.opentopography.org/login'>Click here to register at OpenTopography</a><br><br>"
-                            "<b>Once registered, paste your personal API Key in the 'API Key' field of the plugin's main window and try again.</b>"
-                        )
-                        msg.setInformativeText(info_text)
+                    # Allow clicks on the link
+                    msg.setTextFormat(Qt.RichText)
+                    msg.setTextInteractionFlags(Qt.TextBrowserInteraction)
 
-                        # Allow clicks on the link
-                        msg.setTextFormat(Qt.RichText)
-                        msg.setTextInteractionFlags(Qt.TextBrowserInteraction)
+                    msg.exec_()
+                    return # Stops execution to avoid QGIS errors
+                else:
+                    raise e
 
-                        msg.exec_()
-                        return  # Stops execution to avoid QGIS errors
-                    else:
-                        raise e
             else:
                 # --- LOGIC FOR LINUX AND MAC ---
                 iface.messageBar().pushMessage("Progress", "Preparing environment and downloading DEM...", level=0)

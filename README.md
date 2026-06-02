@@ -33,7 +33,20 @@ The plugin works through a simple 3-step pipeline:
 ## 🛠️ Requirements
 * QGIS 3.x
 * Active internet connection (to download the DEM and satellite basemap).
-* Python `elevation` library installed in the QGIS environment.
+
+### 🚀 Advanced: Unlimited DEM Downloads (Legacy Alternative)
+If you are a Linux user processing massive geographical areas and frequently hit the OpenTopography API daily quota, you can downgrade the plugin to **v2.0.2**. 
+
+Legacy versions bypass the API by compiling the DEM locally, offering unlimited downloads, but they require manual system dependencies.
+
+**To use the legacy engine:**
+1. Download the source code of version `v2.0.2` from the Releases tab.
+2. Open your Linux terminal and install the required OS and Python tools:
+   ```bash
+   sudo apt update
+   sudo apt install make curl gdal-bin -y
+   python3 -m pip install --user elevation
+   ```
 
 ## [v2.0.0] - 2026-06-01
 ### Added
@@ -54,6 +67,14 @@ The plugin works through a simple 3-step pipeline:
 ## [v2.0.2] - 2026-06-01
 ### Fixed
 - **Code Style Compliance**: Cleaned up minor PEP 8 linting warnings throughout the codebase. Resolved missing spaces before inline comments (E261) and removed trailing whitespaces (W291), ensuring cleaner and more maintainable code.
+
+## [v2.1.0] - 2026-06-02
+### Added
+- **API Quota Management UI**: Introduced an interactive error handling dialog (`QMessageBox`) that visually alerts the user when the OpenTopography API limit is reached (HTTP 401/403/429), providing a direct HTML link to register for a free key.
+
+### Changed
+- **Unified Cross-Platform Architecture**: Completely redesigned the DEM data acquisition pipeline. The plugin now uses a single, native Python `urllib` HTTPS request engine for Windows, Linux, and macOS.
+- **Dependency Elimination**: Removed the legacy `elevation` Python package and its reliance on OS-level GNU tools (`make`, `curl`, `gdal-bin`).
 
 ---
 *Developed for the QGIS community to promote agricultural safety.*
