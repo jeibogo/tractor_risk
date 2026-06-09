@@ -89,5 +89,15 @@ Legacy versions bypass the API by compiling the DEM locally, offering unlimited 
 - **Code Quality & PEP8 Compliance**: Resolved QGIS validator linter errors `F401` (removed unused `platform` import) and `E261` (corrected formatting spacing for the `# nosec` inline comment).
 - **Linux Environment Bypassing**: Solved the strict PEP 668 "Externally Managed Environment" crashes on modern Ubuntu/Debian distros.
 
+## [2.1.2] - 2026-06-09
+
+### Fixed
+- **Windows 11 Execution Crash**: Fixed a critical issue where the plugin opened a blank command prompt window and halted processing upon clicking the "Calculate" button.
+- **Invalid Data Source Errors**: Resolved the recurring QGIS error messages (`C:\WINDOWS\system32\elevation is not a valid or recognized data source`) caused by an unintended shell parsing bug during dependency checks.
+
+### Removed
+- **Legacy Pip Installations**: Completely removed legacy `os.system` and `pip` installation routines for the `elevation` library.
+- **UNIX Environments Dependencies**: Eliminated external OS-level calls, fully establishing `urllib.request` as the sole native, cross-platform mechanism to fetch SRTM data from the OpenTopography API.
+
 ---
 *Developed for the QGIS community to promote agricultural safety.*
