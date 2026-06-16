@@ -23,16 +23,15 @@
 """
 import os
 import math
-import subprocess
-import sys
 import urllib.request
 from urllib.error import HTTPError
 
-from qgis.PyQt.QtWidgets import (QDialog, QVBoxLayout, QFormLayout, QLineEdit, QPushButton, QMessageBox, QLabel)
+from qgis.PyQt.QtWidgets import (QDialog, QVBoxLayout, QFormLayout, QLineEdit, QPushButton, QMessageBox, QLabel, QComboBox, QProgressBar)
+from qgis.PyQt.QtCore import QCoreApplication
 from qgis.PyQt.QtGui import QColor, QPixmap
 from qgis.PyQt.QtCore import Qt
-from qgis.gui import QgsMapToolExtent
-from qgis.core import QgsProject, QgsRasterLayer, QgsVectorLayer, QgsPalettedRasterRenderer
+from qgis.gui import QgsMapToolExtent, QgsMapLayerComboBox
+from qgis.core import (QgsMapLayerProxyModel, QgsProject, QgsRasterLayer, QgsVectorLayer, QgsPalettedRasterRenderer, QgsRectangle, QgsCoordinateReferenceSystem, QgsCoordinateTransform)
 from qgis.utils import iface
 import processing
 
@@ -41,7 +40,7 @@ class TractorRiskDialog(QDialog):
 
     def __init__(self, parent=None):
         super(TractorRiskDialog, self).__init__(parent)
-        self.setWindowTitle("Tractor Rollover Risk Zoning v2.1.2")
+        self.setWindowTitle("Tractor Rollover Risk Zoning v2.2.0")
         self.resize(480, 650)  # Expanded window to comfortably fit all elements
 
         # Create a safe temporary directory
@@ -72,6 +71,22 @@ class TractorRiskDialog(QDialog):
         self.in_api_key.setPlaceholderText("Optional: Paste your personal API Key here")
         form_layout.addRow("API Key:", self.in_api_key)
         # -------------------------
+
+        # --- RESOLUTION SELECTOR ---
+        self.in_resolution = QComboBox()
+        self.in_resolution.addItem("Global SRTM (30m - Worldwide)", "SRTMGL1")
+        self.in_resolution.addItem("High Resolution (10m - US Only)", "USGS10m")
+        form_layout.addRow("DEM Resolution:", self.in_resolution)
+        # ---------------------------
+
+        # --- LOADED LAYER DROPDOWN (LOCAL DEM) ---
+        self.in_local_layer = QgsMapLayerComboBox()
+        # Filter to show ONLY Raster layers (e.g., .tif files)
+        self.in_local_layer.setFilters(QgsMapLayerProxyModel.RasterLayer)
+        # Allow the user to leave it empty (to trigger the API download)
+        self.in_local_layer.setAllowEmptyLayer(True)
+        form_layout.addRow("Or select loaded DEM layer:", self.in_local_layer)
+        # -----------------------------------------
 
         # === BASEMAP AND BOUNDING BOX SECTION ===
 
@@ -112,6 +127,18 @@ class TractorRiskDialog(QDialog):
         self.btn_run = QPushButton("Download Terrain and Calculate Risks")
         self.btn_run.setStyleSheet("background-color: #0078d4; color: white; font-weight: bold; padding: 10px; font-size: 13px;")
         self.btn_run.clicked.connect(self.run_analysis)
+
+        # --- PROGRESS BAR & STATUS ---
+        self.status_label = QLabel("Ready to start.")
+        self.status_label.setStyleSheet("color: #7f8c8d; font-style: italic;")
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setValue(0)
+        self.progress_bar.setTextVisible(True)
+
+        layout.addWidget(self.status_label)
+        layout.addWidget(self.progress_bar)
+        # -----------------------------
+
         layout.addWidget(self.btn_run)
 
         self.setLayout(layout)
@@ -210,78 +237,151 @@ class TractorRiskDialog(QDialog):
 
             # File Paths
             dem_path = os.path.join(self.output_dir, 'dem_base.tif')
+
+            # --- FIX: DELETE QGIS CACHE FILES (.aux.xml) TO PREVENT BLACK DEM ISSUE ---
+            aux_file_path = dem_path + ".aux.xml"
+            if os.path.exists(aux_file_path):
+                try:
+                    os.remove(aux_file_path)
+                except OSError:
+                    pass
+            # --------------------------------------------------------------------------
+
             hillshade_path = os.path.join(self.output_dir, 'hillshade.tif')
             contours_path = os.path.join(self.output_dir, 'contours.gpkg')
             slope_path = os.path.join(self.output_dir, 'slope_degrees.tif')
 
-# 1. DEM DOWNLOAD (UNIFIED CROSS-PLATFORM LOGIC)
-            iface.messageBar().pushMessage("Progress", "Downloading DEM data from OpenTopography...", level=0)
-            minx, miny, maxx, maxy = self.bbox_tuple
+# --- 1. DEM ACQUISITION (LOCAL LAYER OR API) ---
+            selected_layer = self.in_local_layer.currentLayer()
 
-            # --- DYNAMIC API KEY LOGIC ---
-            user_api_key = self.in_api_key.text().strip()
+            if selected_layer:
+                # --- PROGRESS UPDATE ---
+                self.progress_bar.setValue(20)
+                self.status_label.setText("Clipping local DEM to bounding box (Processing CRS)...")
+                QCoreApplication.processEvents()
 
-            # Obfuscated default token to prevent High Entropy/Secret security warnings
-            pt1 = "ee4b6a134"
-            pt2 = "537de1d72"
-            pt3 = "c320e0a61"
-            pt4 = "eeb26"
-            fallback_token = pt1 + pt2 + pt3 + pt4
+                # 1. Get the original BBox (which is in EPSG:4326)
+                minx, miny, maxx, maxy = self.bbox_tuple
 
-            # Use the user's key if they pasted one, otherwise use the fallback
-            active_api_key = user_api_key if user_api_key else fallback_token
+                bbox_rect_4326 = QgsRectangle(minx, miny, maxx, maxy)
+                crs_4326 = QgsCoordinateReferenceSystem("EPSG:4326")
 
-            # 1. CONSTRUCT THE URL
-            url_base = "https://portal.opentopography.org/API/globaldem"
-            url = f"{url_base}?demtype=SRTMGL1&south={miny}&north={maxy}&west={minx}&east={maxx}&outputFormat=GTiff&API_Key={active_api_key}"
+                # 2. Get the CRS of the user's local layer
+                layer_crs = selected_layer.crs()
 
-            # 2. RUN THE SECURITY CHECK
-            if not url.lower().startswith('https://'):
-                raise ValueError("Security Error: Only HTTPS URLs are allowed.")
-
-            # 3. EXECUTE THE DOWNLOAD (Pure Python - Cross-platform)
-            try:
-                urllib.request.urlretrieve(url, dem_path)  # nosec B310
-            except HTTPError as e:
-                if e.code in [401, 403, 429]:
-                    msg = QMessageBox(self)
-                    msg.setWindowTitle("⚠️ API Limit Reached")
-
-                    # --- LOAD THE LOGO ---
-                    plugin_dir = os.path.dirname(__file__)
-                    logo_path = os.path.join(plugin_dir, 'ot_logo.png')
-                    pixmap = QPixmap(logo_path)
-                    if not pixmap.isNull():
-                        pixmap_scaled = pixmap.scaledToWidth(150, Qt.SmoothTransformation)
-                        msg.setIconPixmap(pixmap_scaled)
-
-                    # Title and mandatory attribution
-                    msg.setText("<b>The API account quota has been exhausted or the key is invalid.</b><br><i>Data provided by OpenTopography</i>")
-
-                    # Informative text with HTML link
-                    info_text = (
-                        "To continue using this tool, please create a free account to get your own API Key.<br><br>"
-                        "👉 <a href='https://portal.opentopography.org/login'>Click here to register at OpenTopography</a><br><br>"
-                        "<b>Once registered, paste your personal API Key in the 'API Key' field of the plugin's main window and try again.</b>"
-                    )
-                    msg.setInformativeText(info_text)
-
-                    # Allow clicks on the link
-                    msg.setTextFormat(Qt.RichText)
-                    msg.setTextInteractionFlags(Qt.TextBrowserInteraction)
-
-                    msg.exec_()
-                    return  # Stops execution to avoid QGIS errors
+                # 3. Transform the BBox from 4326 to the layer's CRS
+                if crs_4326 != layer_crs:
+                    transform = QgsCoordinateTransform(crs_4326, layer_crs, QgsProject.instance())
+                    bbox_rect_local = transform.transformBoundingBox(bbox_rect_4326)
                 else:
-                    raise e
+                    bbox_rect_local = bbox_rect_4326
+
+                # 4. Strict format required by QGIS for PROJWIN: 'xmin,xmax,ymin,ymax'
+                extent_str = f"{bbox_rect_local.xMinimum()},{bbox_rect_local.xMaximum()},{bbox_rect_local.yMinimum()},{bbox_rect_local.yMaximum()}"
+
+                # 4.5 FIX THE READ/WRITE COLLISION: Save the clipped file with a NEW name
+                dem_path = os.path.join(self.output_dir, 'dem_clipped.tif')
+
+                # 5. Clip the raster
+                processing.run("gdal:cliprasterbyextent", {
+                    'INPUT': selected_layer,
+                    'PROJWIN': extent_str,
+                    'NODATA': None,
+                    'OUTPUT': dem_path
+                })
+
+                # The 'dem_path' variable now safely points to the small, clipped temporal file!
+
+            else:
+                # 1. DEM DOWNLOAD (UNIFIED CROSS-PLATFORM LOGIC)
+                iface.messageBar().pushMessage("Progress", "Downloading DEM data from OpenTopography...", level=0)
+                minx, miny, maxx, maxy = self.bbox_tuple
+
+                # --- DYNAMIC API KEY LOGIC ---
+                user_api_key = self.in_api_key.text().strip()
+
+                # Obfuscated default token to prevent High Entropy/Secret security warnings
+                pt1 = "ee4b6a134"
+                pt2 = "537de1d72"
+                pt3 = "c320e0a61"
+                pt4 = "eeb26"
+                fallback_token = pt1 + pt2 + pt3 + pt4
+
+                # Use the user's key if they pasted one, otherwise use the fallback
+                active_api_key = user_api_key if user_api_key else fallback_token
+
+                # 1. CONSTRUCT THE URL BASED ON USER SELECTION
+
+                # --- PROGRESS UPDATE---
+                self.progress_bar.setValue(20)
+                self.status_label.setText("Downloading topography (This may take a while depending on internet)...")
+                QCoreApplication.processEvents()
+
+                selected_dem = self.in_resolution.currentData()
+
+                if selected_dem == "SRTMGL1":
+                    # Global API for 30 meters
+                    url_base = "https://portal.opentopography.org/API/globaldem"
+                    url = f"{url_base}?demtype=SRTMGL1&south={miny}&north={maxy}&west={minx}&east={maxx}&outputFormat=GTiff&API_Key={active_api_key}"
+                else:
+                    # USGS API for 10 meters (Free for US)
+                    url_base = "https://portal.opentopography.org/API/usgsdem"
+                    url = f"{url_base}?datasetName=USGS10m&south={miny}&north={maxy}&west={minx}&east={maxx}&outputFormat=GTiff&API_Key={active_api_key}"
+
+                # 2. RUN THE SECURITY CHECK
+                if not url.lower().startswith('https://'):
+                    raise ValueError("Security Error: Only HTTPS URLs are allowed.")
+
+                # 3. EXECUTE THE DOWNLOAD (Pure Python - Cross-platform)
+                try:
+                    urllib.request.urlretrieve(url, dem_path)  # nosec B310
+                except HTTPError as e:
+                    if e.code in [401, 403, 429]:
+                        msg = QMessageBox(self)
+                        msg.setWindowTitle("⚠️ API Limit Reached")
+
+                        # --- LOAD THE LOGO ---
+                        plugin_dir = os.path.dirname(__file__)
+                        logo_path = os.path.join(plugin_dir, 'ot_logo.png')
+                        pixmap = QPixmap(logo_path)
+                        if not pixmap.isNull():
+                            pixmap_scaled = pixmap.scaledToWidth(150, Qt.SmoothTransformation)
+                            msg.setIconPixmap(pixmap_scaled)
+
+                        # Title and mandatory attribution
+                        msg.setText("<b>The API account quota has been exhausted or the key is invalid.</b><br><i>Data provided by OpenTopography</i>")
+
+                        # Informative text with HTML link
+                        info_text = (
+                            "To continue using this tool, please create a free account to get your own API Key.<br><br>"
+                            "👉 <a href='https://portal.opentopography.org/login'>Click here to register at OpenTopography</a><br><br>"
+                            "<b>Once registered, paste your personal API Key in the 'API Key' field of the plugin's main window and try again.</b>"
+                        )
+                        msg.setInformativeText(info_text)
+
+                        # Allow clicks on the link
+                        msg.setTextFormat(Qt.RichText)
+                        msg.setTextInteractionFlags(Qt.TextBrowserInteraction)
+
+                        msg.exec_()
+                        return  # Stops execution to avoid QGIS errors
+                    else:
+                        raise e
 
             # ---- LOAD BACKGROUND LAYERS (Bottom layers first) ----
 
             # 2. Load Raw DEM Layer
-            dem_layer = QgsRasterLayer(dem_path, "Digital Elevation Model (DEM)")
+            dem_layer = QgsRasterLayer(dem_path, "Digital Elevation Model (DEM)", "gdal")
             QgsProject.instance().addMapLayer(dem_layer)
 
             # 3. Calculate and Load Hillshade using native GDAL
+
+            # --- PROGRESS UPDATE ---
+            self.progress_bar.setValue(45)
+            self.status_label.setText("Generating hillshade model...")
+            QCoreApplication.processEvents()
+            # -------------------------------------------------------
+
             iface.messageBar().pushMessage("Progress", "Generating Hillshade map...", level=0)
             processing.run("gdal:hillshade", {
                 'INPUT': dem_path, 'BAND': 1, 'Z_FACTOR': 1, 'SCALE': 111120,
@@ -291,6 +391,13 @@ class TractorRiskDialog(QDialog):
             QgsProject.instance().addMapLayer(hs_layer)
 
             # 4. Calculate and Load Contour Lines (Every 10 meters)
+
+            # --- PROGRESS UPDATE ---
+            self.progress_bar.setValue(60)
+            self.status_label.setText("Calculating contour lines...")
+            QCoreApplication.processEvents()
+            # ----------------------------------------------------------------
+
             iface.messageBar().pushMessage("Progress", "Generating contour lines...", level=0)
             processing.run("gdal:contour", {
                 'INPUT': dem_path, 'BAND': 1, 'INTERVAL': 10.0,
@@ -300,10 +407,23 @@ class TractorRiskDialog(QDialog):
             QgsProject.instance().addMapLayer(contour_layer)
 
             # 5. Calculate Base Slope
+
+            # --- PROGRESS UPDATE (PEGA ESTO ANTES DE LAS PENDIENTES) ---
+            self.progress_bar.setValue(75)
+            self.status_label.setText("Deriving absolute slope map...")
+            QCoreApplication.processEvents()
+            # -----------------------------------------------------------
+
             processing.run("gdal:slope", {
                 'INPUT': dem_path, 'BAND': 1, 'SCALE': 111120,
                 'AS_PERCENT': False, 'OUTPUT': slope_path
             })
+
+            # --- PROGRESS UPDATE (PEGA ESTO ANTES DEL CICLO FOR DE RIESGOS) ---
+            self.progress_bar.setValue(85)
+            self.status_label.setText("Reclassifying spatial risk matrices...")
+            QCoreApplication.processEvents()
+            # ------------------------------------------------------------------
 
             # ---- LOAD RISK LAYERS (Top layers last) ----
             for risk_type, (q1, q2, q3) in limits.items():
@@ -320,8 +440,23 @@ class TractorRiskDialog(QDialog):
 
                 self.apply_risk_style(risk_path, f"{risk_type} Risk ({tractor_model})", q1, q2, q3)
 
+            # --- PROGRESS FINISH ---
+            self.progress_bar.setValue(100)
+            self.status_label.setText("Analysis completed successfully!")
+            self.btn_run.setEnabled(True)
+            QCoreApplication.processEvents()
+            # ---------------------------------------------------------------------
+
             QMessageBox.information(self, "Success!", "Analysis completed. Terrain and risk layers have been loaded.")
             self.accept()
 
         except Exception as e:
+
+            # --- PROGRESS ERROR ---
+            self.progress_bar.setValue(0)
+            self.status_label.setText("Error during process.")
+            self.btn_run.setEnabled(True)
+            QCoreApplication.processEvents()
+            # ----------------------------------------------------
+
             QMessageBox.critical(self, "Process Error", str(e))
