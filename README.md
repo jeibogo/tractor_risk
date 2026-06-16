@@ -99,5 +99,18 @@ Legacy versions bypass the API by compiling the DEM locally, offering unlimited 
 - **Legacy Pip Installations**: Completely removed legacy `os.system` and `pip` installation routines for the `elevation` library.
 - **UNIX Environments Dependencies**: Eliminated external OS-level calls, fully establishing `urllib.request` as the sole native, cross-platform mechanism to fetch SRTM data from the OpenTopography API.
 
+
+# 🚜 Tractor Rollover Risk Zoning - v2.2.0
+
+### New Features:
+
+Local DEM Support ("Cookie Cutter"): Added a dropdown menu (QgsMapLayerComboBox) allowing users to select high-resolution raster layers already loaded in the QGIS project, bypassing the need for internet downloads.
+
+10m High-Resolution Support: Integrated support for downloading 10-meter resolution DEMs via the OpenTopography USGS API (US only), alongside the global 30m SRTMGL1 dataset.
+
+Real-time Progress Bar: Implemented a dynamic UI progress bar (QProgressBar) and status labels to provide real-time visual feedback to the user during downloads, reprojections, and geoprocessing tasks.
+
+Smart BBox Clipping: When using a local DEM, the algorithm automatically clips the massive raster to the user's specific Bounding Box using gdal:cliprasterbyextent, drastically optimizing RAM usage and processing time.
+
 ---
 *Developed for the QGIS community to promote agricultural safety.*
